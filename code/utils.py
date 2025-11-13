@@ -81,69 +81,89 @@ def reduce_mem_usage(df, verbose=True):
 
 
 def evaluate(df, total):
-    hitrate_5 = 0
-    mrr_5 = 0
-
-    hitrate_10 = 0
-    mrr_10 = 0
-
-    hitrate_20 = 0
-    mrr_20 = 0
-
-    hitrate_40 = 0
-    mrr_40 = 0
-
-    hitrate_50 = 0
-    mrr_50 = 0
-
-    gg = df.groupby(['user_id'])
-    processed_users = 0
+    """
+    评估推荐系统性能的函数，计算不同推荐列表长度下的命中率和平均倒数排名(MRR)
     
+    参数:
+        df (DataFrame): 包含用户ID、文章ID和标签的数据框
+        total (int): 总用户数，用于归一化计算
+    
+    返回:
+        tuple: 包含10个值的元组，分别是5个不同推荐列表长度(5,10,20,40,50)下的命中率和MRR
+              (hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, 
+               hitrate_40, mrr_40, hitrate_50, mrr_50)
+    """
+    # 初始化不同推荐列表长度下的命中率和MRR变量
+    hitrate_5 = 0  # Top5命中率
+    mrr_5 = 0      # Top5平均倒数排名
+
+    hitrate_10 = 0  # Top10命中率
+    mrr_10 = 0      # Top10平均倒数排名
+
+    hitrate_20 = 0  # Top20命中率
+    mrr_20 = 0      # Top20平均倒数排名
+
+    hitrate_40 = 0  # Top40命中率
+    mrr_40 = 0      # Top40平均倒数排名
+
+    hitrate_50 = 0  # Top50命中率
+    mrr_50 = 0      # Top50平均倒数排名
+
+    # 按用户ID分组处理数据
+    gg = df.groupby(['user_id'])
+    processed_users = 0  # 记录成功处理的用户数
+    
+    # 遍历每个用户的数据
     for user_id, g in tqdm(gg):
         try:
-            # 检查是否存在正样本
+            # 检查是否存在正样本(用户实际点击的文章)
             positive_samples = g[g['label'] == 1]
             if len(positive_samples) == 0:
-                continue
+                continue  # 如果没有正样本，跳过该用户
                 
+            # 获取用户实际点击的文章ID
             item_id = positive_samples['article_id'].values[0]
+            # 获取推荐列表(按推荐顺序排列的文章ID列表)
             predictions = g['article_id'].values.tolist()
 
             # 检查正样本是否在预测列表中
             if item_id not in predictions:
-                continue
+                continue  # 如果真实点击的文章不在推荐列表中，跳过该用户
 
+            # 计算真实点击文章在推荐列表中的排名位置
             rank = 0
             while predictions[rank] != item_id:
                 rank += 1
 
-            if rank < 5:
-                mrr_5 += 1.0 / (rank + 1)
-                hitrate_5 += 1
+            # 根据排名位置更新不同长度下的命中率和MRR
+            if rank < 5:  # 如果在Top5中
+                mrr_5 += 1.0 / (rank + 1)  # MRR = 1/(排名+1)，排名从0开始
+                hitrate_5 += 1              # 命中次数加1
 
-            if rank < 10:
+            if rank < 10:  # 如果在Top10中
                 mrr_10 += 1.0 / (rank + 1)
                 hitrate_10 += 1
 
-            if rank < 20:
+            if rank < 20:  # 如果在Top20中
                 mrr_20 += 1.0 / (rank + 1)
                 hitrate_20 += 1
 
-            if rank < 40:
+            if rank < 40:  # 如果在Top40中
                 mrr_40 += 1.0 / (rank + 1)
                 hitrate_40 += 1
 
-            if rank < 50:
+            if rank < 50:  # 如果在Top50中
                 mrr_50 += 1.0 / (rank + 1)
                 hitrate_50 += 1
                 
-            processed_users += 1
+            processed_users += 1  # 成功处理的用户数加1
             
         except Exception as e:
-            continue
+            continue  # 如果处理过程中出现异常，跳过该用户
     
     print(f"成功处理的用户数: {processed_users}")
 
+    # 将指标归一化，除以总用户数得到平均值
     if total > 0:
         hitrate_5 /= total
         mrr_5 /= total
@@ -159,8 +179,11 @@ def evaluate(df, total):
 
         hitrate_50 /= total
         mrr_50 /= total
-
-    return hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50
+    
+        accuracy = processed_users / total
+        
+    # 返回所有评估指标
+    return hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50, accuracy
 
 
 @multitasking.task

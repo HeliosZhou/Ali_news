@@ -163,7 +163,10 @@ def recall(df_query, item_sim, user_item_dict, worker_id):
         data_list.append(df_temp)
     
     # 合并结果数据
-    df_data = pd.concat(data_list, sort=False)
+    if data_list:  # 只有当有数据时才合并
+        df_data = pd.concat(data_list, sort=False)
+    else:
+        df_data = pd.DataFrame(columns=['user_id', 'article_id', 'sim_score', 'label'])
 
     # 保存中间结果
     os.makedirs('../user_data/tmp/itemcf', exist_ok=True)
@@ -256,11 +259,22 @@ if __name__ == '__main__':
         log.debug(f"查询数据中的用户数: {total}")
 
         if len(df_data[df_data['label'].notnull()]) > 0:
-            hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50 = evaluate(
+            hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50, accuracy = evaluate(
                 df_data[df_data['label'].notnull()], total)
 
             log.debug(
-                f'itemcf: {hitrate_5}, {mrr_5}, {hitrate_10}, {mrr_10}, {hitrate_20}, {mrr_20}, {hitrate_40}, {mrr_40}, {hitrate_50}, {mrr_50}'
+                f'itemcf: \n'
+                f'accuracy(准确率): \t{accuracy:.4f}\n'  # 成功处理的用户数占总用户数的比例
+                f'hitrate_5(Top5命中率): \t{hitrate_5:.4f}\n'  # 推荐Top5中包含用户实际点击文章的比例
+                f'mrr_5(Top5平均倒数排名): \t{mrr_5:.4f}\n'  # Top5的平均倒数排名
+                f'hitrate_10(Top10命中率): \t{hitrate_10:.4f}\n'  # 推荐Top10中包含用户实际点击文章的比例
+                f'mrr_10(Top10平均倒数排名): \t{mrr_10:.4f}\n'  # Top10的平均倒数排名
+                f'hitrate_20(Top20命中率): \t{hitrate_20:.4f}\n'  # 推荐Top20中包含用户实际点击文章的比例
+                f'mrr_20(Top20平均倒数排名): \t{mrr_20:.4f}\n'  # Top20的平均倒数排名
+                f'hitrate_40(Top40命中率): \t{hitrate_40:.4f}\n'  # 推荐Top40中包含用户实际点击文章的比例
+                f'mrr_40(Top40平均倒数排名): \t{mrr_40:.4f}\n'  # Top40的平均倒数排名
+                f'hitrate_50(Top50命中率): \t{hitrate_50:.4f}\n'  # 推荐Top50中包含用户实际点击文章的比例
+                f'mrr_50(Top50平均倒数排名): \t{mrr_50:.4f}'  # Top50的平均倒数排名
             )
         else:
             log.debug("没有找到带标签的数据，无法计算评估指标")
