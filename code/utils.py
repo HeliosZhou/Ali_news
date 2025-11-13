@@ -97,53 +97,68 @@ def evaluate(df, total):
     mrr_50 = 0
 
     gg = df.groupby(['user_id'])
-
-    for _, g in tqdm(gg):
+    processed_users = 0
+    
+    for user_id, g in tqdm(gg):
         try:
-            item_id = g[g['label'] == 1]['article_id'].values[0]
+            # 检查是否存在正样本
+            positive_samples = g[g['label'] == 1]
+            if len(positive_samples) == 0:
+                continue
+                
+            item_id = positive_samples['article_id'].values[0]
+            predictions = g['article_id'].values.tolist()
+
+            # 检查正样本是否在预测列表中
+            if item_id not in predictions:
+                continue
+
+            rank = 0
+            while predictions[rank] != item_id:
+                rank += 1
+
+            if rank < 5:
+                mrr_5 += 1.0 / (rank + 1)
+                hitrate_5 += 1
+
+            if rank < 10:
+                mrr_10 += 1.0 / (rank + 1)
+                hitrate_10 += 1
+
+            if rank < 20:
+                mrr_20 += 1.0 / (rank + 1)
+                hitrate_20 += 1
+
+            if rank < 40:
+                mrr_40 += 1.0 / (rank + 1)
+                hitrate_40 += 1
+
+            if rank < 50:
+                mrr_50 += 1.0 / (rank + 1)
+                hitrate_50 += 1
+                
+            processed_users += 1
+            
         except Exception as e:
             continue
+    
+    print(f"成功处理的用户数: {processed_users}")
 
-        predictions = g['article_id'].values.tolist()
+    if total > 0:
+        hitrate_5 /= total
+        mrr_5 /= total
 
-        rank = 0
-        while predictions[rank] != item_id:
-            rank += 1
+        hitrate_10 /= total
+        mrr_10 /= total
 
-        if rank < 5:
-            mrr_5 += 1.0 / (rank + 1)
-            hitrate_5 += 1
+        hitrate_20 /= total
+        mrr_20 /= total
 
-        if rank < 10:
-            mrr_10 += 1.0 / (rank + 1)
-            hitrate_10 += 1
+        hitrate_40 /= total
+        mrr_40 /= total
 
-        if rank < 20:
-            mrr_20 += 1.0 / (rank + 1)
-            hitrate_20 += 1
-
-        if rank < 40:
-            mrr_40 += 1.0 / (rank + 1)
-            hitrate_40 += 1
-
-        if rank < 50:
-            mrr_50 += 1.0 / (rank + 1)
-            hitrate_50 += 1
-
-    hitrate_5 /= total
-    mrr_5 /= total
-
-    hitrate_10 /= total
-    mrr_10 /= total
-
-    hitrate_20 /= total
-    mrr_20 /= total
-
-    hitrate_40 /= total
-    mrr_40 /= total
-
-    hitrate_50 /= total
-    mrr_50 /= total
+        hitrate_50 /= total
+        mrr_50 /= total
 
     return hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50
 
@@ -179,7 +194,7 @@ def gen_sub(prediction):
 
     all_articles = set(prediction['article_id'].values)
 
-    sub_sample = pd.read_csv('/home/guohong/news_xiangmu/data/testA_click_log.csv')
+    sub_sample = pd.read_csv('../../data/testA_click_log.csv')
     test_users = sub_sample.user_id.unique()
 
     n_split = max_threads

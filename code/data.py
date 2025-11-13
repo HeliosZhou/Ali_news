@@ -47,7 +47,7 @@ def data_offline(df_train_click, df_test_click):
     df_test_click: 测试集点击日志数据
     
     处理流程:
-    - 随机采样50000个训练用户作为验证用户
+    - 随机采样50000个训练用户为验证用户
     - 对验证用户采用留一法，最后一条记录作为验证标签，其余作为训练数据
     - 合并所有训练数据并按用户ID和时间戳排序
     - 为测试用户创建待预测的查询条目
@@ -132,6 +132,7 @@ def data_offline(df_train_click, df_test_click):
     # 保存文件
     # 修改为基于项目根目录的路径
     # 获取项目根目录的绝对路径
+
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     user_data_path = os.path.join(project_root, 'user_data')
     data_path = os.path.join(user_data_path, 'data')

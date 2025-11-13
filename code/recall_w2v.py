@@ -15,6 +15,10 @@ from annoy import AnnoyIndex
 from gensim.models import Word2Vec
 from tqdm import tqdm
 
+# 添加项目根目录路径
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils import Logger, evaluate
 
 warnings.filterwarnings('ignore')
@@ -131,24 +135,30 @@ def recall(df_query, article_vec_map, article_index, user_item_dict,
 
 
 if __name__ == '__main__':
+    # 获取项目根目录的绝对路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    user_data_path = os.path.join(project_root, 'user_data')
+    data_path = os.path.join(user_data_path, 'data')
+    model_path = os.path.join(user_data_path, 'model')
+    
     if mode == 'valid':
-        df_click = pd.read_pickle('../user_data/data/offline/click.pkl')
-        df_query = pd.read_pickle('../user_data/data/offline/query.pkl')
+        df_click = pd.read_pickle(os.path.join(data_path, 'offline/click.pkl'))
+        df_query = pd.read_pickle(os.path.join(data_path, 'offline/query.pkl'))
 
-        os.makedirs('../user_data/data/offline', exist_ok=True)
-        os.makedirs('../user_data/model/offline', exist_ok=True)
+        os.makedirs(os.path.join(data_path, 'offline'), exist_ok=True)
+        os.makedirs(os.path.join(model_path, 'offline'), exist_ok=True)
 
-        w2v_file = '../user_data/data/offline/article_w2v.pkl'
-        model_path = '../user_data/model/offline'
+        w2v_file = os.path.join(data_path, 'offline/article_w2v.pkl')
+        model_path = os.path.join(model_path, 'offline')
     else:
-        df_click = pd.read_pickle('../user_data/data/online/click.pkl')
-        df_query = pd.read_pickle('../user_data/data/online/query.pkl')
+        df_click = pd.read_pickle(os.path.join(data_path, 'online/click.pkl'))
+        df_query = pd.read_pickle(os.path.join(data_path, 'online/query.pkl'))
 
-        os.makedirs('../user_data/data/online', exist_ok=True)
-        os.makedirs('../user_data/model/online', exist_ok=True)
+        os.makedirs(os.path.join(data_path, 'online'), exist_ok=True)
+        os.makedirs(os.path.join(model_path, 'online'), exist_ok=True)
 
-        w2v_file = '../user_data/data/online/article_w2v.pkl'
-        model_path = '../user_data/model/online'
+        w2v_file = os.path.join(data_path, 'online/article_w2v.pkl')
+        model_path = os.path.join(model_path, 'online')
 
     log.debug(f'df_click shape: {df_click.shape}')
     log.debug(f'{df_click.head()}')
@@ -181,7 +191,9 @@ if __name__ == '__main__':
     n_len = total // n_split
 
     # 清空临时文件夹
-    for path, _, file_list in os.walk('../tmp/w2v'):
+    tmp_path = os.path.join(user_data_path, 'tmp/w2v')
+    os.makedirs(tmp_path, exist_ok=True)
+    for path, _, file_list in os.walk(tmp_path):
         for file_name in file_list:
             os.remove(os.path.join(path, file_name))
 
@@ -194,7 +206,7 @@ if __name__ == '__main__':
     log.info('合并任务')
 
     df_data = pd.DataFrame()
-    for path, _, file_list in os.walk('../user_data/tmp/w2v'):
+    for path, _, file_list in os.walk(os.path.join(user_data_path, 'tmp/w2v')):
         for file_name in file_list:
             df_temp = pd.read_pickle(os.path.join(path, file_name))
             df_data = df_data.append(df_temp)
@@ -219,6 +231,6 @@ if __name__ == '__main__':
         )
     # 保存召回结果
     if mode == 'valid':
-        df_data.to_pickle('../user_data/data/offline/recall_w2v.pkl')
+        df_data.to_pickle(os.path.join(data_path, 'offline/recall_w2v.pkl'))
     else:
-        df_data.to_pickle('../user_data/data/online/recall_w2v.pkl')
+        df_data.to_pickle(os.path.join(data_path, 'online/recall_w2v.pkl'))

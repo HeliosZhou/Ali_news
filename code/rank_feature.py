@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 from pandarallel import pandarallel
 
+# 添加项目根目录路径
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils import Logger
 
 pd.set_option('display.max_columns', None)
@@ -119,19 +123,23 @@ def func_w2w_last_sim(x):
 
 
 if __name__ == '__main__':
+    # 获取项目根目录的绝对路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    user_data_path = os.path.join(project_root, 'user_data')
+    data_path = os.path.join(user_data_path, 'data')
+    sim_path = os.path.join(user_data_path, 'sim')
+    
     if mode == 'valid':
-        
-        df_feature = pd.read_pickle('../user_data/data/offline/recall.pkl')
-        df_click = pd.read_pickle('../user_data/data/offline/click.pkl')
-
+        df_feature = pd.read_pickle(os.path.join(data_path, 'offline/recall.pkl'))
+        df_click = pd.read_pickle(os.path.join(data_path, 'offline/click.pkl'))
     else:
-        df_feature = pd.read_pickle('../user_data/data/online/recall.pkl')
-        df_click = pd.read_pickle('../user_data/data/online/click.pkl')
+        df_feature = pd.read_pickle(os.path.join(data_path, 'online/recall.pkl'))
+        df_click = pd.read_pickle(os.path.join(data_path, 'online/click.pkl'))
 
     # 文章特征
     log.debug(f'df_feature.shape: {df_feature.shape}')
 
-    df_article = pd.read_csv('/home/guohong/news_xiangmu/data/articles.csv')
+    df_article = pd.read_csv(os.path.join(project_root, '../../data/articles.csv'))
     df_article['created_at_ts'] = df_article['created_at_ts'] / 1000
     df_article['created_at_ts'] = df_article['created_at_ts'].astype('int')
     df_feature = df_feature.merge(df_article, how='left')
@@ -260,11 +268,11 @@ if __name__ == '__main__':
     user_item_dict = dict(zip(user_item_['user_id'], user_item_['article_id']))
 
     if mode == 'valid':
-        f = open('../user_data/sim/offline/itemcf_sim.pkl', 'rb')
+        f = open(os.path.join(sim_path, 'offline/itemcf_sim.pkl'), 'rb')
         item_sim = pickle.load(f)
         f.close()
     else:
-        f = open('../user_data/sim/online/itemcf_sim.pkl', 'rb')
+        f = open(os.path.join(sim_path, 'online/itemcf_sim.pkl'), 'rb')
         item_sim = pickle.load(f)
         f.close()
 
@@ -281,11 +289,11 @@ if __name__ == '__main__':
 
     ## binetwork 相关
     if mode == 'valid':
-        f = open('../user_data/sim/offline/binetwork_sim.pkl', 'rb')
+        f = open(os.path.join(sim_path, 'offline/binetwork_sim.pkl'), 'rb')
         binetwork_sim = pickle.load(f)
         f.close()
     else:
-        f = open('../user_data/sim/online/binetwork_sim.pkl', 'rb')
+        f = open(os.path.join(sim_path, 'online/binetwork_sim.pkl'), 'rb')
         binetwork_sim = pickle.load(f)
         f.close()
 
@@ -298,11 +306,11 @@ if __name__ == '__main__':
 
     ## w2v 相关
     if mode == 'valid':
-        f = open('../user_data/data/offline/article_w2v.pkl', 'rb')
+        f = open(os.path.join(data_path, 'offline/article_w2v.pkl'), 'rb')
         article_vec_map = pickle.load(f)
         f.close()
     else:
-        f = open('../user_data/data/online/article_w2v.pkl', 'rb')
+        f = open(os.path.join(data_path, 'online/article_w2v.pkl'), 'rb')
         article_vec_map = pickle.load(f)
         f.close()
 
@@ -318,7 +326,6 @@ if __name__ == '__main__':
 
     # 保存特征文件
     if mode == 'valid':
-        df_feature.to_pickle('../user_data/data/offline/feature.pkl')
-
+        df_feature.to_pickle(os.path.join(data_path, 'offline/feature.pkl'))
     else:
-        df_feature.to_pickle('../user_data/data/online/feature.pkl')
+        df_feature.to_pickle(os.path.join(data_path, 'online/feature.pkl'))

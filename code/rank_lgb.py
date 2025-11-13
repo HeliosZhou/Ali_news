@@ -11,6 +11,10 @@ from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 
+# 添加项目根目录路径
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils import Logger, evaluate, gen_sub
 
 warnings.filterwarnings('ignore')
@@ -108,7 +112,12 @@ def train_model(df_feature, df_query):
         })
         df_importance_list.append(df_importance)
 
-        joblib.dump(model, f'../user_data/model/lgb{fold_id}.pkl')
+        # 获取项目根目录的绝对路径
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        user_data_path = os.path.join(project_root, 'user_data')
+        model_path = os.path.join(user_data_path, 'model')
+        
+        joblib.dump(model, os.path.join(model_path, f'lgb{fold_id}.pkl'))
 
     # 特征重要性
     df_importance = pd.concat(df_importance_list)
@@ -135,8 +144,12 @@ def train_model(df_feature, df_query):
     # 生成提交文件
     df_sub = gen_sub(prediction)
     df_sub.sort_values(['user_id'], inplace=True)
-    os.makedirs('../prediction_result', exist_ok=True)
-    df_sub.to_csv(f'../prediction_result/result.csv', index=False)
+    
+    # 获取项目根目录的绝对路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    prediction_result_path = os.path.join(project_root, 'prediction_result')
+    os.makedirs(prediction_result_path, exist_ok=True)
+    df_sub.to_csv(os.path.join(prediction_result_path, 'result.csv'), index=False)
 
 
 def online_predict(df_test):
@@ -150,26 +163,37 @@ def online_predict(df_test):
     prediction = df_test[['user_id', 'article_id']]
     prediction['pred'] = 0
 
+    # 获取项目根目录的绝对路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    user_data_path = os.path.join(project_root, 'user_data')
+    model_path = os.path.join(user_data_path, 'model')
+    prediction_result_path = os.path.join(project_root, 'prediction_result/online')
+    
     for fold_id in tqdm(range(5)):
-        model = joblib.load(f'../user_data/model/lgb{fold_id}.pkl')
+        model = joblib.load(os.path.join(model_path, f'lgb{fold_id}.pkl'))
         pred_test = model.predict_proba(df_test[feature_names])[:, 1]
         prediction['pred'] += pred_test / 5
 
     # 生成提交文件
     df_sub = gen_sub(prediction)
     df_sub.sort_values(['user_id'], inplace=True)
-    os.makedirs('../prediction_result/online/', exist_ok=True)
-    df_sub.to_csv(f'../prediction_result/online/result.csv', index=False)
+    os.makedirs(prediction_result_path, exist_ok=True)
+    df_sub.to_csv(os.path.join(prediction_result_path, 'result.csv'), index=False)
 
 
 if __name__ == '__main__':
+    # 获取项目根目录的绝对路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    user_data_path = os.path.join(project_root, 'user_data')
+    data_path = os.path.join(user_data_path, 'data')
+    
     if mode == 'valid':
-        df_feature = pd.read_pickle('../user_data/data/offline/feature.pkl')
-        df_query = pd.read_pickle('../user_data/data/offline/query.pkl')
+        df_feature = pd.read_pickle(os.path.join(data_path, 'offline/feature.pkl'))
+        df_query = pd.read_pickle(os.path.join(data_path, 'offline/query.pkl'))
         for f in df_feature.select_dtypes('object').columns:
             lbl = LabelEncoder()#将字符型的特征转为标签型特征
             df_feature[f] = lbl.fit_transform(df_feature[f].astype(str))
         train_model(df_feature, df_query)
     else:
-        df_feature = pd.read_pickle('../user_data/data/online/feature.pkl')
+        df_feature = pd.read_pickle(os.path.join(data_path, 'online/feature.pkl'))
         online_predict(df_feature)

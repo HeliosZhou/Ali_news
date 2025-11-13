@@ -12,6 +12,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+# 添加项目根目录路径
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils import Logger, evaluate
 
 max_threads = multitasking.config['CPU_CORES']
@@ -112,18 +116,24 @@ def recall(df_query, item_sim, user_item_dict, worker_id):
 
 
 if __name__ == '__main__':
+    # 获取项目根目录的绝对路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    user_data_path = os.path.join(project_root, 'user_data')
+    data_path = os.path.join(user_data_path, 'data')
+    sim_path = os.path.join(user_data_path, 'sim')
+    
     if mode == 'valid':
-        df_click = pd.read_pickle('../user_data/data/offline/click.pkl')
-        df_query = pd.read_pickle('../user_data/data/offline/query.pkl')
+        df_click = pd.read_pickle(os.path.join(data_path, 'offline/click.pkl'))
+        df_query = pd.read_pickle(os.path.join(data_path, 'offline/query.pkl'))
 
-        os.makedirs('../user_data/sim/offline', exist_ok=True)
-        sim_pkl_file = '../user_data/sim/offline/binetwork_sim.pkl'
+        os.makedirs(os.path.join(sim_path, 'offline'), exist_ok=True)
+        sim_pkl_file = os.path.join(sim_path, 'offline/binetwork_sim.pkl')
     else:
-        df_click = pd.read_pickle('../user_data/data/online/click.pkl')
-        df_query = pd.read_pickle('../user_data/data/online/query.pkl')
+        df_click = pd.read_pickle(os.path.join(data_path, 'online/click.pkl'))
+        df_query = pd.read_pickle(os.path.join(data_path, 'online/query.pkl'))
 
-        os.makedirs('../user_data/sim/online', exist_ok=True)
-        sim_pkl_file = '../user_data/sim/online/binetwork_sim.pkl'
+        os.makedirs(os.path.join(sim_path, 'online'), exist_ok=True)
+        sim_pkl_file = os.path.join(sim_path, 'online/binetwork_sim.pkl')
 
     log.debug(f'df_click shape: {df_click.shape}')
     log.debug(f'{df_click.head()}')
@@ -141,7 +151,9 @@ if __name__ == '__main__':
     n_len = total // n_split
 
     # 清空临时文件夹
-    for path, _, file_list in os.walk('../user_data/tmp/binetwork'):
+    tmp_path = os.path.join(user_data_path, 'tmp/binetwork')
+    os.makedirs(tmp_path, exist_ok=True)
+    for path, _, file_list in os.walk(tmp_path):
         for file_name in file_list:
             os.remove(os.path.join(path, file_name))
 
@@ -154,7 +166,7 @@ if __name__ == '__main__':
     log.info('合并任务')
 
     df_data = pd.DataFrame()
-    for path, _, file_list in os.walk('../user_data/tmp/binetwork'):
+    for path, _, file_list in os.walk(os.path.join(user_data_path, 'tmp/binetwork')):
         for file_name in file_list:
             df_temp = pd.read_pickle(os.path.join(path, file_name))
             df_data = df_data.append(df_temp)
@@ -180,6 +192,6 @@ if __name__ == '__main__':
 
     # 保存召回结果
     if mode == 'valid':
-        df_data.to_pickle('../user_data/data/offline/recall_binetwork.pkl')
+        df_data.to_pickle(os.path.join(data_path, 'offline/recall_binetwork.pkl'))
     else:
-        df_data.to_pickle('../user_data/data/online/recall_binetwork.pkl')
+        df_data.to_pickle(os.path.join(data_path, 'online/recall_binetwork.pkl'))
