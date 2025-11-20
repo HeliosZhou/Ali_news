@@ -48,7 +48,23 @@ log.info(f'w2v 召回，mode: {mode}')
 
 
 def word2vec(df_, f1, f2, model_path):
+    """
+    使用Word2Vec算法训练文章向量表示
+    
+    该函数通过对用户历史点击序列进行建模，训练出文章的向量表示。
+    这些向量可以用于计算文章之间的相似度，从而实现基于内容的召回。
+    
+    参数:
+        df_ (DataFrame): 输入数据框，包含用户点击行为数据
+        f1 (str): 分组字段名，通常是'user_id'，用于构建用户点击序列
+        f2 (str): 序列字段名，通常是'click_article_id'，表示用户点击的文章ID
+        model_path (str): Word2Vec模型保存路径
+    
+    返回:
+        dict: 文章向量映射字典，key为文章ID，value为对应的向量表示
+    """
     df = df_.copy()
+    
     tmp = df.groupby(f1, as_index=False)[f2].agg(
         {'{}_{}_list'.format(f1, f2): list})
     
@@ -65,7 +81,7 @@ def word2vec(df_, f1, f2, model_path):
         model = Word2Vec.load(f'{model_path}/w2v.m')
     else:
         model = Word2Vec(sentences=sentences,
-                         size=256,
+                         vector_size=256,
                          window=3,
                          min_count=1,
                          sg=1,
@@ -73,13 +89,13 @@ def word2vec(df_, f1, f2, model_path):
                          seed=seed,
                          negative=5,
                          workers=10,
-                         iter=1)
+                         epochs=1)
         model.save(f'{model_path}/w2v.m')
 
     article_vec_map = {}
     for word in set(words):
-        if word in model:
-            article_vec_map[int(word)] = model[word]
+        if word in model.wv.key_to_index:
+            article_vec_map[int(word)] = model.wv[word]
 
     return article_vec_map
 
@@ -87,19 +103,33 @@ def word2vec(df_, f1, f2, model_path):
 @multitasking.task
 def recall(df_query, article_vec_map, article_index, user_item_dict,
            worker_id):
+    """
+    基于Word2Vec向量相似度进行召回
+    
+    该函数使用训练好的文章向量，通过计算向量相似度找到与用户历史
+    点击文章相似的候选文章，形成推荐列表。
+    
+    参数:
+        df_query (DataFrame): 查询数据框，包含用户ID和待预测文章ID
+        article_vec_map (dict): 文章向量映射字典
+        article_index (AnnoyIndex): 使用Annoy构建的文章向量索引，用于快速近似最近邻搜索
+        user_item_dict (dict): 用户历史点击文章字典，key为用户ID，value为点击过的文章列表
+        worker_id (int): 工作进程ID，用于保存结果文件命名
+    """
     data_list = []
+
 
     for user_id, item_id in tqdm(df_query.values):
         rank = defaultdict(int)
 
         interacted_items = user_item_dict[user_id]
-        interacted_items = interacted_items[-1:]
+        interacted_items = interacted_items[-2:]
 
         for item in interacted_items:
             article_vec = article_vec_map[item]
 
             item_ids, distances = article_index.get_nns_by_vector(
-                article_vec, 100, include_distances=True)
+                article_vec, 200, include_distances=True)
             sim_scores = [2 - distance for distance in distances]
 
             for relate_item, wij in zip(item_ids, sim_scores):
@@ -107,7 +137,7 @@ def recall(df_query, article_vec_map, article_index, user_item_dict,
                     rank.setdefault(relate_item, 0)
                     rank[relate_item] += wij
 
-        sim_items = sorted(rank.items(), key=lambda d: d[1], reverse=True)[:50]
+        sim_items = sorted(rank.items(), key=lambda d: d[1], reverse=True)[:100]
         item_ids = [item[0] for item in sim_items]
         item_sim_scores = [item[1] for item in sim_items]
 
@@ -135,7 +165,6 @@ def recall(df_query, article_vec_map, article_index, user_item_dict,
 
 
 if __name__ == '__main__':
-    # 获取项目根目录的绝对路径
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     user_data_path = os.path.join(project_root, 'user_data')
     data_path = os.path.join(user_data_path, 'data')
@@ -169,7 +198,6 @@ if __name__ == '__main__':
     pickle.dump(article_vec_map, f)
     f.close()
 
-    # 将 embedding 建立索引
     article_index = AnnoyIndex(256, 'angular')
     article_index.set_seed(2020)
 
@@ -183,14 +211,12 @@ if __name__ == '__main__':
     user_item_dict = dict(
         zip(user_item_['user_id'], user_item_['click_article_id']))
 
-    # 召回
     n_split = max_threads
     all_users = df_query['user_id'].unique()
     shuffle(all_users)
     total = len(all_users)
     n_len = total // n_split
 
-    # 清空临时文件夹
     tmp_path = os.path.join(user_data_path, 'tmp/w2v')
     os.makedirs(tmp_path, exist_ok=True)
     for path, _, file_list in os.walk(tmp_path):
@@ -205,31 +231,41 @@ if __name__ == '__main__':
     multitasking.wait_for_tasks()
     log.info('合并任务')
 
-    df_data = pd.DataFrame()
+    df_list = []
     for path, _, file_list in os.walk(os.path.join(user_data_path, 'tmp/w2v')):
         for file_name in file_list:
             df_temp = pd.read_pickle(os.path.join(path, file_name))
-            df_data = df_data.append(df_temp)
+            df_list.append(df_temp)
+    
+    df_data = pd.concat(df_list, sort=False)
 
-    # 必须加，对其进行排序
     df_data = df_data.sort_values(['user_id', 'sim_score'],
                                   ascending=[True,
                                              False]).reset_index(drop=True)
     log.debug(f'df_data.head: {df_data.head()}')
 
-    # 计算召回指标
     if mode == 'valid':
         log.info(f'计算召回指标')
 
         total = df_query[df_query['click_article_id'] != -1].user_id.nunique()
 
-        hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50 = evaluate(
+        hitrate_5, mrr_5, hitrate_10, mrr_10, hitrate_20, mrr_20, hitrate_40, mrr_40, hitrate_50, mrr_50, accuracy = evaluate(
             df_data[df_data['label'].notnull()], total)
 
         log.debug(
-            f'w2v: {hitrate_5}, {mrr_5}, {hitrate_10}, {mrr_10}, {hitrate_20}, {mrr_20}, {hitrate_40}, {mrr_40}, {hitrate_50}, {mrr_50}'
+            f'itemcf: \n'
+            f'accuracy: \t{accuracy:.4f}\n'
+            f'hitrate_5: \t{hitrate_5:.4f}\n'
+            f'mrr_5: \t{mrr_5:.4f}\n'
+            f'hitrate_10: \t{hitrate_10:.4f}\n'
+            f'mrr_10: \t{mrr_10:.4f}\n'
+            f'hitrate_20: \t{hitrate_20:.4f}\n'
+            f'mrr_20: \t{mrr_20:.4f}\n'
+            f'hitrate_40: \t{hitrate_40:.4f}\n'
+            f'mrr_40: \t{mrr_40:.4f}\n'
+            f'hitrate_50: \t{hitrate_50:.4f}\n'
+            f'mrr_50: \t{mrr_50:.4f}'
         )
-    # 保存召回结果
     if mode == 'valid':
         df_data.to_pickle(os.path.join(data_path, 'offline/recall_w2v.pkl'))
     else:
