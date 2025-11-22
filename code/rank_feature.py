@@ -139,7 +139,7 @@ if __name__ == '__main__':
     # 文章特征
     log.debug(f'df_feature.shape: {df_feature.shape}')
 
-    df_article = pd.read_csv(os.path.join(project_root, '../../data/articles.csv'))
+    df_article = pd.read_csv(os.path.join(project_root, 'data/articles.csv'))
     df_article['created_at_ts'] = df_article['created_at_ts'] / 1000
     df_article['created_at_ts'] = df_article['created_at_ts'].astype('int')
     df_feature = df_feature.merge(df_article, how='left')
